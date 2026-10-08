@@ -1,0 +1,63 @@
+{
+  "name": "hydro-sample-runner",
+  "displayName": "Hydro Sample Runner",
+  "description": "Import public Hydro samples and run the active C++ file against them.",
+  "version": "0.2.0",
+  "publisher": "local-development",
+  "license": "MIT",
+  "engines": { "vscode": "^1.90.0" },
+  "main": "./src/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:hydroSamples.import",
+    "onCommand:hydroSamples.run",
+    "onCommand:hydroSamples.showPairing"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "hydroSamples.import", "title": "Hydro: 导入题目样例" },
+      { "command": "hydroSamples.run", "title": "Hydro: 运行样例自测" },
+      { "command": "hydroSamples.showPairing", "title": "Hydro: 复制 Edge 配对信息" }
+    ],
+    "configuration": {
+      "title": "Hydro Sample Runner",
+      "properties": {
+        "hydroSamples.allowedOrigin": {
+          "type": "string",
+          "default": "https://frp-fan.com:36387",
+          "description": "允许导入题目的 Hydro 站点源地址。"
+        },
+        "hydroSamples.allowUntrustedCertificate": {
+          "type": "boolean",
+          "default": false,
+          "description": "仅对上述站点的题目抓取跳过证书验证。请确认这是你信任的站点。"
+        },
+        "hydroSamples.compilerPath": {
+          "type": "string",
+          "default": "C:\\msys64\\ucrt64\\bin\\g++.exe",
+          "description": "C++ 编译器路径。"
+        },
+        "hydroSamples.timeoutMs": {
+          "type": "integer",
+          "default": 3000,
+          "minimum": 100,
+          "maximum": 60000,
+          "description": "每组样例的运行超时（毫秒）。"
+        },
+        "hydroSamples.autoSubmit": {
+          "type": "boolean",
+          "default": false,
+          "description": "全部公开样例通过后，将当前代码排队给已配对的 Edge 伴随扩展提交。"
+        },
+        "hydroSamples.bridgePort": {
+          "type": "integer",
+          "default": 32167,
+          "minimum": 1024,
+          "maximum": 65535,
+          "description": "仅监听 127.0.0.1 的 Edge 伴随扩展通信端口。"
+        }
+      }
+    }
+  },
+  "scripts": { "test": "node --test" }
+}

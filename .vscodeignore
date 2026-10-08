@@ -1,0 +1,12 @@
+.vscode/**
+.packaging/**
+test/**
+docs/**
+edge-companion/**
+DEEPSEEK_TASKS.md
+DELIVERY.md
+hydro-vscode-selftest-plan.md
+.gitignore
+.vscodeignore
+*.vsix
+hydro-edge-companion-*.zip

@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Hydro Sample Runner Bridge",
+  "version": "0.2.0",
+  "description": "Submit locally passing C++ solutions through your signed-in Hydro tab.",
+  "permissions": ["alarms", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://frp-fan.com/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Hydro Bridge" }
+}
