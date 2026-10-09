@@ -54,13 +54,17 @@ test('Edge page function accepts already parsed Hydro contexts', async () => {
     location: { href: 'https://frp-fan.com:36387/d/shnu2026seed/p/B2002', origin: 'https://frp-fan.com:36387', pathname: '/d/shnu2026seed/p/B2002' },
     URL, FormData,
     fetch: async url => String(url).includes('/record/')
-      ? { ok: true, text: async () => JSON.stringify({ rdoc: { status: 2, score: 0 } }) }
+      ? { ok: true, text: async () => JSON.stringify({ rdoc: { status: 2, score: 0, testCases: [{ id: 7, status: 2, score: 0, input: '', output: 'expected', userOutput: 'actual', message: 'wrong' }] } }) }
       : { ok: true, url: 'https://frp-fan.com:36387/d/shnu2026seed/record/abc' }
   };
   vm.runInNewContext(`${source}\nthis.submit = submitOnHydroPage;`, context);
   const result = await context.submit({ pid: 'B2002', lang: 'cc.cc17o2', code: 'int main(){}' });
   assert.equal(result.ok, true);
   assert.equal(result.score, 0);
+  assert.equal(result.failedCases[0].id, 7);
+  assert.equal(result.failedCases[0].input, '');
+  assert.equal(result.failedCases[0].expected, 'expected');
+  assert.equal(result.failedCases[0].actual, 'actual');
 });
 
 test('Edge waits for judging before reporting a zero score', async () => {

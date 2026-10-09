@@ -237,6 +237,7 @@ function parseProblemContext(context) {
   return {
     pid: String(context.pdoc.pid || context.problemId || ''),
     title: String(context.pdoc.title || ''),
+    content,
     samples: extractSamples(content)
   };
 }

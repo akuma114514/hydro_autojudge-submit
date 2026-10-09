@@ -2,7 +2,7 @@
   "name": "hydro-sample-runner",
   "displayName": "Hydro Sample Runner",
   "description": "Import public Hydro samples and run the active C++ file against them.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "local-development",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -14,6 +14,8 @@
     "onCommand:hydroSamples.showPairing"
   ],
   "contributes": {
+    "viewsContainers": { "activitybar": [{ "id": "hydroSamples", "title": "Hydro", "icon": "media/hydro.svg" }] },
+    "views": { "hydroSamples": [{ "type": "webview", "id": "hydroSamples.sidebar", "name": "题目 · 自测 · 提交" }] },
     "commands": [
       { "command": "hydroSamples.import", "title": "Hydro: 导入题目样例" },
       { "command": "hydroSamples.run", "title": "Hydro: 一键运行自测", "icon": "$(beaker)" },

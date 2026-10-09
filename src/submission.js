@@ -103,7 +103,7 @@ class SubmissionBridge {
     }
     if (request.method === 'POST' && request.url === '/result') {
       try {
-        const result = await this.readJson(request, 4096);
+        const result = await this.readJson(request, 2 * 1024 * 1024);
         if (!this.pending || !this.claimed || result.id !== this.pending.id || typeof result.ok !== 'boolean') {
           throw new Error('没有对应的待提交任务。');
         }

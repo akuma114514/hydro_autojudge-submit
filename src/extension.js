@@ -9,9 +9,27 @@ const { saveRecord, loadRecord } = require('./storage');
 const { runSamples } = require('./runner');
 const { buildReport, summaryMessage } = require('./report');
 const { createSubmissionJob, SubmissionBridge } = require('./submission');
+const { SidebarProvider } = require('./sidebar');
 
 let extensionContext;
 let bridge;
+let sidebar;
+let running = false;
+let refreshVersion = 0;
+
+async function refreshSidebar() {
+  const version = ++refreshVersion;
+  try {
+    const { sourcePath, workspaceRoot } = activeSource();
+    let record;
+    try { record = await loadRecord(workspaceRoot, sourcePath); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (version !== refreshVersion) return;
+    sidebar.update({ source: sourcePath, record, result: extensionContext.workspaceState.get(`hydro.run.${sourcePath}`), submission: extensionContext.workspaceState.get(`hydro.latest.${sourcePath}`), busy: running, error: null });
+  } catch (error) {
+    if (version === refreshVersion) sidebar.update({ source: null, record: null, result: null, submission: null, busy: running, error: error.message });
+  }
+}
 
 async function ensureBridge() {
   if (bridge) return bridge;
@@ -21,12 +39,16 @@ async function ensureBridge() {
     await extensionContext.secrets.store('hydro.bridgeToken', token);
   }
   const instance = new SubmissionBridge(token, settings().get('bridgePort'), async (job, result) => {
-    await extensionContext.workspaceState.update(`hydro.submission.${job.digest}`, {
+    const submission = {
       status: result.ok ? 'submitted' : 'failed',
       recordUrl: result.recordUrl || null,
       error: result.error || null,
-      score: result.score ?? null
-    });
+      score: result.score ?? null,
+      failedCases: Array.isArray(result.failedCases) ? result.failedCases : []
+    };
+    await extensionContext.workspaceState.update(`hydro.submission.${job.digest}`, submission);
+    await extensionContext.workspaceState.update(`hydro.latest.${job.sourcePath}`, submission);
+    await refreshSidebar();
     if (result.ok) {
       const scoreText = typeof result.score === 'number' ? `，得分 ${result.score}` : '，得分暂未返回';
       vscode.window.showInformationMessage(`Hydro 已提交 ${job.pid}${scoreText}。评测记录：${result.recordUrl || '请到网站查看'}`);
@@ -96,8 +118,12 @@ async function saveImportedProblem(url, problem, workspaceRoot, sourcePath, { co
   }
   const filename = await saveRecord(workspaceRoot, sourcePath, {
     url: url.toString(), pid: problem.pid, title: problem.title,
+    content: problem.content,
     importedAt: new Date().toISOString(), samples: problem.samples
   });
+  await extensionContext.workspaceState.update(`hydro.run.${sourcePath}`, undefined);
+  await extensionContext.workspaceState.update(`hydro.latest.${sourcePath}`, undefined);
+  await refreshSidebar();
   vscode.window.showInformationMessage(`已保存 ${problem.samples.length} 组样例：${filename}`);
   return { pid: problem.pid, count: problem.samples.length };
 }
@@ -148,6 +174,8 @@ async function run() {
   output.appendLine(`源文件：${sourcePath}`);
   output.appendLine('编译中…');
   const result = await runSamples(sourcePath, record.samples, compilerPath, timeoutMs);
+  await extensionContext.workspaceState.update(`hydro.run.${sourcePath}`, result);
+  await refreshSidebar();
   const report = buildReport(record, sourcePath, result, {
     compileCommand: `${compilerPath} -std=c++17 ${path.basename(sourcePath)}`
   });
@@ -164,6 +192,7 @@ async function run() {
       validateProblemUrl(record.url, config.get('allowedOrigin'));
       const sourceCode = await fs.readFile(sourcePath, 'utf8');
       const job = createSubmissionJob(record, sourceCode, result);
+      job.sourcePath = sourcePath;
       const key = `hydro.submission.${job.digest}`;
       const previous = extensionContext.workspaceState.get(key);
       if (previous && previous.status !== 'failed') {
@@ -172,6 +201,8 @@ async function run() {
         const instance = await ensureBridge();
         instance.queue(job);
         await extensionContext.workspaceState.update(key, { status: 'queued', createdAt: job.createdAt });
+        await extensionContext.workspaceState.update(`hydro.latest.${sourcePath}`, { status: 'queued', createdAt: job.createdAt });
+        await refreshSidebar();
         vscode.window.showInformationMessage('全部本地样例通过；已排队。请在已登录的 Edge 中打开对应题目页，等待伴随扩展提交。');
       }
     }
@@ -182,6 +213,20 @@ async function run() {
 
 function activate(context) {
   extensionContext = context;
+  sidebar = new SidebarProvider(async action => {
+    if (['import', 'run'].includes(action)) return vscode.commands.executeCommand(`hydroSamples.${action}`);
+    if (action === 'pair') return vscode.commands.executeCommand('hydroSamples.showPairing');
+    const value = action === 'problem' ? sidebar.state.record?.url : action === 'record' ? sidebar.state.submission?.recordUrl : null;
+    if (value) {
+      try {
+        const url = new URL(value);
+        if (url.protocol === 'https:' && url.origin === new URL(settings().get('allowedOrigin')).origin) await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
+      } catch (error) { vscode.window.showErrorMessage(error.message); }
+    }
+  });
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('hydroSamples.sidebar', sidebar));
+  context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(() => refreshSidebar()));
+  refreshSidebar();
   ensureBridge().catch(error => vscode.window.showWarningMessage(`Hydro 本地桥接启动失败：${error.message}`));
   for (const [command, callback] of [
     ['hydroSamples.import', importSamples],
@@ -189,8 +234,13 @@ function activate(context) {
     ['hydroSamples.showPairing', showPairing]
   ]) {
     context.subscriptions.push(vscode.commands.registerCommand(command, async () => {
-      try { await callback(); }
-      catch (error) { vscode.window.showErrorMessage(`Hydro: ${error.message}`); }
+      if (running) return;
+      try {
+        if (command === 'hydroSamples.run') { running = true; sidebar.update({ busy: true }); }
+        await callback();
+      }
+      catch (error) { sidebar.update({ error: error.message }); vscode.window.showErrorMessage(`Hydro: ${error.message}`); }
+      finally { running = false; sidebar.update({ busy: false }); }
     }));
   }
 }

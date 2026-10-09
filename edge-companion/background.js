@@ -127,6 +127,7 @@ async function submitOnHydroPage(job) {
     }
     if (!recordUrl) throw new Error('Hydro 未返回评测记录；请检查是否已登录或站点是否拒绝了提交。');
     let score;
+    let failedCases = [];
     for (let attempt = 0; attempt < 30; attempt++) {
       try {
         const detail = await fetch(recordUrl, {
@@ -157,12 +158,26 @@ async function submitOnHydroPage(job) {
           if (rdoc && ![0, 20, 21, 22].includes(rdoc.status) &&
               typeof rdoc.score === 'number' && Number.isFinite(rdoc.score)) {
             score = rdoc.score;
+            failedCases = (Array.isArray(rdoc.testCases) ? rdoc.testCases : [])
+              .filter(item => item.score === 0)
+              .slice(0, 100)
+              .map((item, index) => {
+                const text = value => typeof value === 'string' ? value.slice(0, 4000) : undefined;
+                return {
+                  id: item.id ?? index + 1,
+                  status: item.status,
+                  input: text(item.input),
+                  expected: text(item.expectedOutput ?? item.output),
+                  actual: text(item.userOutput ?? item.actualOutput),
+                  message: text(item.message)
+                };
+              });
             break;
           }
         }
       } catch { /* judge result may not be ready yet */ }
       if (attempt < 29) await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    return { ok: true, recordUrl, ...(score === undefined ? {} : { score }) };
+    return { ok: true, recordUrl, failedCases, ...(score === undefined ? {} : { score }) };
   } catch (error) { return { ok: false, error: error.message }; }
 }
