@@ -2,7 +2,7 @@
   "name": "hydro-sample-runner",
   "displayName": "Hydro Sample Runner",
   "description": "Import public Hydro samples and run the active C++ file against them.",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "publisher": "local-development",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
