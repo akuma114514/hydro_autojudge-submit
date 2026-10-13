@@ -65,10 +65,20 @@ async function importCurrentPage() {
   const { pairing } = await chrome.storage.local.get('pairing');
   if (!pairing) throw new Error('请先配对 VS Code 插件。');
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) throw new Error('请先打开 Hydro 题目页。');
+  if (!tab?.id || !tab.url) throw new Error('请先打开 Hydro 或洛谷题目页。');
   const url = new URL(tab.url);
+  if (url.origin === 'https://www.luogu.com.cn' && !url.username && !url.password &&
+      /^\/problem\/(?:P\d+|B\d+|U\d+|T\d+|CF\d+[A-Z]\d*|AT_[A-Za-z0-9_]+|SP\d+)\/?$/.test(url.pathname)) {
+    url.search = '';
+    url.hash = '';
+    const result = await bridgeRequest(pairing, '/import', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url.toString() })
+    });
+    return result.cancelled ? '已取消导入。' : `已将 ${result.pid} 的 ${result.count} 组样例导入 VS Code 当前 C++ 文件。`;
+  }
   if (url.origin !== ALLOWED_ORIGIN || !/^\/d\/[^/]+\/p\/[^/]+\/?$/.test(url.pathname)) {
-    throw new Error('当前标签页不是支持的 Hydro 普通题目。');
+    throw new Error('当前标签页不是支持的 Hydro 或洛谷普通题目。');
   }
   const injected = await chrome.scripting.executeScript({
     target: { tabId: tab.id }, world: 'MAIN', func: readCurrentProblem

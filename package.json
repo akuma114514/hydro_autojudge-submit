@@ -1,11 +1,13 @@
 {
   "name": "hydro-sample-runner",
   "displayName": "Hydro Sample Runner",
-  "description": "Import public Hydro samples and run the active C++ file against them.",
-  "version": "0.3.2",
+  "description": "Import public Hydro and Luogu samples and run the active C++ file against them.",
+  "version": "0.3.3",
   "publisher": "local-development",
   "license": "MIT",
-  "engines": { "vscode": "^1.90.0" },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
   "main": "./src/extension.js",
   "activationEvents": [
     "onStartupFinished",
@@ -14,16 +16,46 @@
     "onCommand:hydroSamples.showPairing"
   ],
   "contributes": {
-    "viewsContainers": { "activitybar": [{ "id": "hydroSamples", "title": "Hydro", "icon": "media/hydro.svg" }] },
-    "views": { "hydroSamples": [{ "type": "webview", "id": "hydroSamples.sidebar", "name": "题目 · 自测 · 提交" }] },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hydroSamples",
+          "title": "Hydro",
+          "icon": "media/hydro.svg"
+        }
+      ]
+    },
+    "views": {
+      "hydroSamples": [
+        {
+          "type": "webview",
+          "id": "hydroSamples.sidebar",
+          "name": "题目 · 自测 · 提交"
+        }
+      ]
+    },
     "commands": [
-      { "command": "hydroSamples.import", "title": "Hydro: 导入题目样例" },
-      { "command": "hydroSamples.run", "title": "Hydro: 一键运行自测", "icon": "$(beaker)" },
-      { "command": "hydroSamples.showPairing", "title": "Hydro: 复制 Edge 配对信息" }
+      {
+        "command": "hydroSamples.import",
+        "title": "Hydro: 导入题目样例"
+      },
+      {
+        "command": "hydroSamples.run",
+        "title": "Hydro: 一键运行自测",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "hydroSamples.showPairing",
+        "title": "Hydro: 复制 Edge 配对信息"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "hydroSamples.run", "when": "resourceExtname == .cpp", "group": "navigation" }
+        {
+          "command": "hydroSamples.run",
+          "when": "resourceExtname == .cpp",
+          "group": "navigation"
+        }
       ]
     },
     "configuration": {
@@ -54,7 +86,7 @@
         "hydroSamples.autoSubmit": {
           "type": "boolean",
           "default": false,
-          "description": "全部公开样例通过后，将当前代码排队给已配对的 Edge 伴随扩展提交。"
+          "description": "仅 Hydro：全部公开样例通过后，将当前代码排队给已配对的 Edge 伴随扩展提交。"
         },
         "hydroSamples.bridgePort": {
           "type": "integer",
@@ -66,5 +98,7 @@
       }
     }
   },
-  "scripts": { "test": "node --test" }
+  "scripts": {
+    "test": "node --test"
+  }
 }

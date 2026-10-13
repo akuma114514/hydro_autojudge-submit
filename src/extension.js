@@ -4,7 +4,8 @@ const vscode = require('vscode');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const crypto = require('node:crypto');
-const { validateProblemUrl, fetchPage, parseProblem, parseProblemContext } = require('./hydro');
+const { validateProblemUrl, parseProblemContext } = require('./hydro');
+const { resolveProblemUrl, importProblem } = require('./platforms');
 const { saveRecord, loadRecord } = require('./storage');
 const { runSamples } = require('./runner');
 const { buildReport, summaryMessage } = require('./report');
@@ -87,20 +88,20 @@ async function importSamples() {
   const { sourcePath, workspaceRoot } = activeSource();
   const config = settings();
   const value = await vscode.window.showInputBox({
-    prompt: '粘贴 Hydro 普通题目链接',
+    prompt: '粘贴 Hydro 或洛谷普通题目链接（如 https://www.luogu.com.cn/problem/P1001）',
     ignoreFocusOut: true
   });
   if (!value) return;
-  const url = validateProblemUrl(value, config.get('allowedOrigin'));
-  const allowUntrusted = config.get('allowUntrustedCertificate');
+  const target = resolveProblemUrl(value, config.get('allowedOrigin'));
+  const { url } = target;
+  const allowUntrusted = target.platform === 'hydro' && config.get('allowUntrustedCertificate');
   if (allowUntrusted) {
     const choice = await vscode.window.showWarningMessage(
       `将跳过 ${url.origin} 的证书验证以读取公开题面。`, '继续导入'
     );
     if (choice !== '继续导入') return;
   }
-  const html = await fetchPage(url, allowUntrusted);
-  const problem = parseProblem(html);
+  const problem = await importProblem(target, allowUntrusted);
   await saveImportedProblem(url, problem, workspaceRoot, sourcePath);
 }
 
@@ -118,7 +119,7 @@ async function saveImportedProblem(url, problem, workspaceRoot, sourcePath, { co
   }
   const filename = await saveRecord(workspaceRoot, sourcePath, {
     url: url.toString(), pid: problem.pid, title: problem.title,
-    content: problem.content,
+    content: problem.content, platform: problem.platform || 'hydro',
     importedAt: new Date().toISOString(), samples: problem.samples
   });
   await extensionContext.workspaceState.update(`hydro.run.${sourcePath}`, undefined);
@@ -129,8 +130,11 @@ async function saveImportedProblem(url, problem, workspaceRoot, sourcePath, { co
 }
 
 async function importFromEdge(payload) {
-  const url = validateProblemUrl(payload?.url, settings().get('allowedOrigin'));
-  const problem = parseProblemContext(payload?.context);
+  const target = resolveProblemUrl(payload?.url, settings().get('allowedOrigin'));
+  const { url } = target;
+  const problem = target.platform === 'luogu'
+    ? await importProblem(target)
+    : parseProblemContext(payload?.context);
   if (String(problem.pid) !== decodeURIComponent(url.pathname.split('/').filter(Boolean).at(-1))) {
     throw new Error('题目页链接与题号不匹配。');
   }
@@ -153,7 +157,7 @@ async function run() {
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
     const choice = await vscode.window.showWarningMessage(
-      '当前 C++ 文件还没有导入 Hydro 样例。请先导入题目链接。',
+      '当前 C++ 文件还没有导入题目样例。请先导入题目链接。',
       '现在导入'
     );
     if (choice !== '现在导入') return;
@@ -188,6 +192,10 @@ async function run() {
   }
   if (summary.failed === 0) {
     vscode.window.showInformationMessage(summaryMessage(summary));
+    if (record.platform === 'luogu') {
+      vscode.window.showInformationMessage('洛谷本地样例全部通过，请点击侧边栏“打开原题”手动提交。');
+      return;
+    }
     if (config.get('autoSubmit')) {
       validateProblemUrl(record.url, config.get('allowedOrigin'));
       const sourceCode = await fs.readFile(sourcePath, 'utf8');
@@ -220,7 +228,12 @@ function activate(context) {
     if (value) {
       try {
         const url = new URL(value);
-        if (url.protocol === 'https:' && url.origin === new URL(settings().get('allowedOrigin')).origin) await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
+        if (action === 'problem') {
+          const target = resolveProblemUrl(value, settings().get('allowedOrigin'));
+          await vscode.env.openExternal(vscode.Uri.parse(target.url.toString()));
+        } else if (url.protocol === 'https:' && url.origin === new URL(settings().get('allowedOrigin')).origin) {
+          await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
+        }
       } catch (error) { vscode.window.showErrorMessage(error.message); }
     }
   });

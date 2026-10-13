@@ -127,3 +127,34 @@ test('Edge imports only the active supported problem through the paired bridge',
   assert.equal(requests[0].url, 'http://127.0.0.1:32167/import');
   assert.equal(JSON.parse(requests[0].options.body).context.pdoc.pid, 'B2002');
 });
+
+
+test('Edge imports Luogu URL without injecting scripts and rejects unrelated pages', async () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'edge-companion', 'background.js'), 'utf8');
+  const listeners = { addListener() {} };
+  const requests = [];
+  let currentUrl = 'https://www.luogu.com.cn/problem/P1001?lang=zh#submit';
+  const context = {
+    chrome: {
+      runtime: { onInstalled: listeners, onStartup: listeners, onMessage: listeners },
+      alarms: { onAlarm: listeners },
+      storage: { local: { get: async () => ({ pairing: { port: 32167, token: 'test' } }) } },
+      tabs: { query: async () => [{ id: 8, url: currentUrl }] },
+      scripting: { executeScript: async () => { throw new Error('Luogu must not inject scripts'); } }
+    },
+    URL,
+    fetch: async (url, options) => {
+      requests.push({ url, options });
+      return { ok: true, json: async () => ({ pid: 'P1001', count: 1 }) };
+    }
+  };
+  vm.runInNewContext(`${source}\nthis.importCurrent = importCurrentPage;`, context);
+  assert.match(await context.importCurrent(), /P1001/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { url: 'https://www.luogu.com.cn/problem/P1001' });
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer test');
+  for (const url of ['https://www.luogu.com.cn.evil.test/problem/P1001', 'https://www.luogu.com.cn/contest/1', 'https://www.luogu.com.cn/problem/P1001/solution']) {
+    currentUrl = url;
+    await assert.rejects(context.importCurrent(), /不是支持/);
+  }
+  assert.equal(requests.length, 1);
+});
